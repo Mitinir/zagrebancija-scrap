@@ -5,54 +5,40 @@ import sys
 
 
 """
-
-ZAGREBANCIJA SCRAPOTRONIC 3000
-
-ej bando,
-
-Dio koji dosad radi:
-das funkciji downloadUrlsFromPage link na neku specificnu kategoriju i on ce poskidat linkove na clanke
-ako ti clanci nisu stariji od 2020, to pali pomocu dateChecka. Potom sam isao poskidati linkove na sve kategorije
-kroz getCategories pa sam u mainu njega stavio prije nek to poskida, i onda za svaku kategoriju iz tog fajla nek se 
-izvrti downloadUrlsFromPage-- to je barem ideja. 
-
 TODO:
+--eeeeh mozda najbolje u kategorijama maknut podkategorije jer su sve stare.
+
 --stavit u petlju koja će ić stranicu po stranicu u kategoriji i skidat članke do početka 2020,
 najbolje doslovno iteratorom jer to izgleda kao /crna-kronika/page/2/, /page/3/ itd a skripta ionako stane 
 kad je starije od 2020
-
 --promijenit implementaciju tog dateChecka tako da ne exita odmah cijeli program nego da nastavi sa iducom kategorijom,
 ovo sa sys exitom sam na brzinu napravio samo kao boilerplate
-
 --onako testno iz liste linkova na same clanke izvuc metapodatke beautifulsoupom i igrat se sa slaganjem u csv
-
-
-U mainu zakomentiravajte i odkomentiravajte po potrebi kad cete testirat stvari, da vam program ne radi requestove
-non stop i da vam se konzola ne popunjava glupostima. Za pocetak predlazem odkomentirat downloadUrlsFromPage
-i u argument pasteat prvu stranicu neke kategorije.
-
-Lp, 
-Uprava
 """
 def main():
     print("Main!")
+
     url = "https://www.zagrebancija.com/"
     #getCategories("https://www.zagrebancija.com/")
     #downloadUrlsFromPage("https://www.zagrebancija.com/kategorija/aktualnosti/crna-kronika/page/2")
-    """
-    Imamo txt sa linkovima na kategorije, sad za svaku kategoriju zelimo provest funkciju koja ce poskidati
-    linkove na clanke koji su izasli u 2020.
-    """
-
-    """
     fajl = open("categoryLinks.txt", "r")
-    for link in fajl:
-        link = link.rstrip() #jer smo ih zapisivali u fajl sa newline znakom
-        downloadUrlsFromPage(link)
-    """
+    unsorted = []
+    ext = 0
+    for categLink in fajl:
+        categLink= categLink.rstrip()
+        downloadUrlsFromPage(categLink, ext)
+        ext +=1
+    fajl.close()
 
-
-#ideja je dobit listu linkova na kategorije
+    fajl_w_doubles = open("linkovi.txt", "r")
+    fajl_wo_doubles = open("noDoubles.txt", "a")
+    for link in fajl_w_doubles:
+        unsorted.append(link)
+    fajl_w_doubles.close()
+    noDubz = removeDoubles(unsorted)
+    for link in noDubz:
+        fajl_wo_doubles.write(link)
+    fajl_wo_doubles.close()
 def getCategories(url):
     c = urlopen(url).read()
     soup = BeautifulSoup(c, features="lxml")
@@ -72,12 +58,15 @@ def getCategories(url):
         fajl.write(category + "\n")
     fajl.close()
 
-def downloadUrlsFromPage(url):
+def downloadUrlsFromPage(url, pageNum):
     c = urlopen(url).read()
     soup = BeautifulSoup(c, features="lxml")
+    url = url + "page/"+str(pageNum)
     if dateCheck(soup) == False:
-        print("Prestaro!")
-        sys.exit()
+        print(url + " Prestaro!")
+        return
+    print(url + " Nije prestar ") #makni kasnije
+
     h3s = []
     aTags = []
     urls = []
@@ -101,6 +90,7 @@ def downloadUrlsFromPage(url):
         fajl.write(sortedUrl + "\n")
     fajl.close()
 
+
 def dateCheck(soup):
     timetags = soup.find_all("time")
     datetimes = []
@@ -120,6 +110,8 @@ def dateCheck(soup):
         print("Prestaro!")
         is2020 = False
     return is2020
-
+def removeDoubles(unsortedList):
+    sortedList = list(set(unsortedList))
+    return sortedList
 if __name__ == "__main__":
     main()
