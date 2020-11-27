@@ -1,26 +1,14 @@
 from bs4 import BeautifulSoup
 from urllib.request import urlopen
 from datetime import date
-import sys
+import csv
 
 
-"""
-TODO:
---eeeeh mozda najbolje u kategorijama maknut podkategorije jer su sve stare.
-
---stavit u petlju koja će ić stranicu po stranicu u kategoriji i skidat članke do početka 2020,
-najbolje doslovno iteratorom jer to izgleda kao /crna-kronika/page/2/, /page/3/ itd a skripta ionako stane 
-kad je starije od 2020
---promijenit implementaciju tog dateChecka tako da ne exita odmah cijeli program nego da nastavi sa iducom kategorijom,
-ovo sa sys exitom sam na brzinu napravio samo kao boilerplate
---onako testno iz liste linkova na same clanke izvuc metapodatke beautifulsoupom i igrat se sa slaganjem u csv
-"""
 def main():
     print("Main!")
-
-    url = "https://www.zagrebancija.com/"
+    #url = "https://www.zagrebancija.com/"
     #getCategories("https://www.zagrebancija.com/")
-    #downloadUrlsFromPage("https://www.zagrebancija.com/kategorija/aktualnosti/crna-kronika/page/2")
+
     fajl = open("categoryLinks.txt", "r")
     unsorted = []
     ext = 0
@@ -29,7 +17,6 @@ def main():
         downloadUrlsFromPage(categLink, ext)
         ext +=1
     fajl.close()
-
     fajl_w_doubles = open("linkovi.txt", "r")
     fajl_wo_doubles = open("noDoubles.txt", "a")
     for link in fajl_w_doubles:
@@ -39,6 +26,86 @@ def main():
     for link in noDubz:
         fajl_wo_doubles.write(link)
     fajl_wo_doubles.close()
+
+
+    with open('zagrebancija-metapodaci.csv', 'w', newline='\n', encoding="utf-8") as file:
+
+        with open('noDoubles.txt', "r", newline='\n', encoding="utf-8") as linkovi:
+            writer = csv.writer(file)
+            writer.writerow(["Link", "Naslov", "Podnaslov", "Autor", "Link na autora", "Datum", "Tagovi", "Kategorije", "Tekst"])
+            for link in linkovi:
+                a = getMetadata(link)
+                print(a[-1], a[-2])
+                writer.writerow([a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]])
+    file.close()
+    linkovi.close()
+
+def getMetadata(link):
+    """
+    autor, naslov, podnaslov, link, (br autorovih clanaka) kategorija, tagovi, datum, tekst
+    """
+    c = urlopen(link).read()
+    soup = BeautifulSoup(c, features="lxml")
+    text = soup.get_text()
+    #print(text)
+    head_tag = soup.head
+    #print(type(head_tag))
+    metas = head_tag.find_all("meta")
+    mList = []
+    #za author name: <div class="td-post-author-name">
+    for meta in metas:
+        mList.append(meta)
+    mList = mList[1:]
+    title = ""
+    url = ""
+    description = ""
+    pubTime = ""
+
+    for m in mList:
+
+        if (m.get("property")) == "og:title":
+            title = (m.get("content"))
+        elif (m.get("property")) == "og:description":
+            description = (m.get("content"))
+        elif (m.get("property")) == "og:url":
+            url = (m.get("content"))
+        elif (m.get("property")) == "article:published_time":
+            pubTime = (m.get("content"))
+        else:
+            pass
+
+
+
+
+    datetime = pubTime[:10]
+    dateBroken = datetime.split("-")
+    pyDate = date(int(dateBroken[0]), int(dateBroken[1]), int(dateBroken[2]))
+    pubTime = pyDate
+
+
+    body_tag = soup.body
+    #iz bodyja trebamo td_post_author_name, td_post_header (gettext) za kategorije i footer
+    divs = body_tag.find_all("div")
+    mydivs = soup.find("div", {"class": "td-post-author-name"})
+    #print(type(mydivs), mydivs)
+    author_link = mydivs.find("a")['href']
+    author_name = mydivs.find("a").get_text()
+
+    kategorije = ""
+    mydivs2 = soup.find_all("li", {"class": "entry-category"})
+    for li in mydivs2:
+        kategorije +=  (li.get_text()) + " "
+
+    tagovi = ""
+    footFetish = body_tag.find("footer")
+    tags = footFetish.find("ul", {"class": "td-tags"})
+    hrefs = tags.find_all("a")
+    for href in hrefs:
+        tagovi += href.get_text() + " "
+    tekst = body_tag.find("div",{"class": "td-post-content"})
+    realText = str(tekst.get_text())
+    print(realText)
+    return url, title, description, author_name, author_link, pubTime, tagovi, kategorije, realText
 def getCategories(url):
     c = urlopen(url).read()
     soup = BeautifulSoup(c, features="lxml")
@@ -57,7 +124,6 @@ def getCategories(url):
     for category in categoryList:
         fajl.write(category + "\n")
     fajl.close()
-
 def downloadUrlsFromPage(url, pageNum):
     c = urlopen(url).read()
     soup = BeautifulSoup(c, features="lxml")
@@ -89,8 +155,6 @@ def downloadUrlsFromPage(url, pageNum):
         print(sortedUrl)
         fajl.write(sortedUrl + "\n")
     fajl.close()
-
-
 def dateCheck(soup):
     timetags = soup.find_all("time")
     datetimes = []
@@ -113,5 +177,6 @@ def dateCheck(soup):
 def removeDoubles(unsortedList):
     sortedList = list(set(unsortedList))
     return sortedList
+
 if __name__ == "__main__":
     main()
